@@ -1,35 +1,8 @@
 {
-  "BlockingQueries": [
+  "EnvironmentName": 
     {
-      "environment" : "env1",
-      "ifQuery" : "select count(1) from pg_stat_activity a1 join pg_locks p1 on a1.pid = p1.pid and p1.granted join pg_locks p2 on p1.relation = p2.relation and not p2.granted join pg_stat_activity a2 on a2.pid = p2.pid join pg_stat_all_tables t on p1.relation = t.relid;",
-      "thenQueries" : [
-        {
-          "queryName" : "listOfProcesses",
-          "query": "select now()-query_start as Running_Since,pid,client_hostname,client_addr, usename, state, left(query,60) from pg_stat_activity"
-        },
-        {
-          "queryName" : "blockingQueries",
-          "query" : "select a1.pid as blocking_pid,a1.usename as blocking_user,a1.query_start,a1.query as blocking_query,a2.pid as blocked_pid,a2.usename as blocked_user,t.schemaname ||'.'||t.relname as locked_table from pg_stat_activity a1 join pg_locks p1 on a1.pid = p1.pid and p1.granted join pg_locks p2 on p1.relation = p2.relation and not p2.granted join pg_stat_activity a2 on a2.pid = p2.pid join pg_stat_all_tables t on p1.relation = t.relid"
-        }
-      ],
-      "recipients" : [ {"email":"abc@live.com"}, {"email":"abc@microsoft.com"}]
-    }],
-    "LongRunningQueries": [
-    {
-      "environment" : "env2",
-      "ifQuery" : "SELECT count(pid) FROM pg_stat_activity WHERE age(clock_timestamp(),query_start) < interval '5 minutes' AND usename NOT like '%postgres%' AND state  like '%active%'",
-      "thenQueries" : [
-        {
-          "queryName" : "listOfLongRunningQueries",
-          "query": "SELECT datname as Database, pid as Process_ID, usename as Username, query,client_hostname,state, now() - query_start as Query_Duration, now() - backend_start as Session_Duration FROM pg_stat_activity WHERE age(clock_timestamp(),query_start) > interval '5 minutes' AND state like '%active%' AND usename NOT like '%postgres%' ORDER BY 1 desc"
-        },
-        {
-          "queryName" : "queryStoreInMemoryData",
-          "query" : "select * from query_store.staging_data(true) where user_id !=10 order by mean_time desc"
-        }
-      ],
-      "recipients" : [ {"email":"abc@live.com"}, {"email":"abc@microsoft.com"}]
+      "ws_metric_aggregation_grouped_by" : "with ordered_ws_aggregation as (select event_type ||\\':\\'|| event as group_by, start_time, db_id, sum(calls) metric from query_store.pgms_wait_sampling_view where start_time >= \\'%s\\' and start_time < \\'%s\\' group by event_type ||\\':\\'|| event, start_time, db_id order by db_id,group_by, start_time ) select db_id,group_by, array_agg(metric) as metric_value, array_agg(start_time) as timeseries from ordered_ws_aggregation group by db_id, group_by",
+      "qs_metric_aggregation_grouped_by" : "with ordered_qs_aggregation as (select query_id as group_by, query_sql_text, start_time, datname, %s(%s) as metric from query_store.qs_view join pg_database on query_store.qs_view.db_id = pg_database.oid where start_time >= \\'%s\\' and start_time < \\'%s\\' group by group_by, query_sql_text, start_time, datname order by datname,group_by, start_time ) select datname as database_name,group_by, query_sql_text, array_agg(metric) as metric_value, array_agg(start_time) as timeseries from ordered_qs_aggregation group by datname, group_by, query_sql_text"  
     }
-  ]
+ 
 }

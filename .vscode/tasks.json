@@ -2,38 +2,31 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "runFunctionsHost",
-      "type": "shell",
-      "osx": {
-        "command": ". ${config:azureFunctions.pythonVenv}\\bin\\activate && func extensions install && pip install -r requirements.txt && func host start"
-      },
-      "windows": {
-        "command": "${config:azureFunctions.pythonVenv}\\Scripts\\activate && func extensions install ; pip install -r requirements.txt && func host start"
-      },
-      "linux": {
-        "command": ". ${config:azureFunctions.pythonVenv}\\bin\\activate && func extensions install && pip install -r requirements.txt && func host start"
-      },
+      "type": "func",
+      "command": "host start",
+      "problemMatcher": "$func-watch",
       "isBackground": true,
-      "options": {
-        "env": {
-          "languageWorkers__python__arguments": "-m ptvsd --host 127.0.0.1 --port 9091"
-        }
-      },
-      "problemMatcher": "$func-watch"
+      "dependsOn": "func: extensions install"
     },
     {
-      "label": "funcPack",
+      "type": "func",
+      "command": "extensions install",
+      "dependsOn": "pipInstall",
+      "problemMatcher": []
+    },
+    {
+      "label": "pipInstall",
       "type": "shell",
       "osx": {
-        "command": ". ${config:azureFunctions.pythonVenv}\\bin\\activate && func pack"
+        "command": "${config:azureFunctions.pythonVenv}/bin/python -m pip install -r requirements.txt"
       },
       "windows": {
-        "command": "${config:azureFunctions.pythonVenv}\\Scripts\\activate ; func pack"
+        "command": "${config:azureFunctions.pythonVenv}\\Scripts\\python -m pip install -r requirements.txt"
       },
       "linux": {
-        "command": ". ${config:azureFunctions.pythonVenv}\\bin\\activate && func pack"
+        "command": "${config:azureFunctions.pythonVenv}/bin/python -m pip install -r requirements.txt"
       },
-      "isBackground": true
+      "problemMatcher": []
     }
   ]
 }

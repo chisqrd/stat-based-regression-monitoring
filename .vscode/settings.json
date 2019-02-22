@@ -3,12 +3,12 @@
   "azureFunctions.projectLanguage": "Python",
   "azureFunctions.templateFilter": "Verified",
   "azureFunctions.deploySubpath": "stat-based-regression-monitoring.zip",
-  "azureFunctions.preDeployTask": "funcPack",
+  "azureFunctions.preDeployTask": "func: pack --build-native-deps --no-bundler",
   "files.exclude": {
     "obj": true,
     "bin": true
   },
   "azureFunctions.pythonVenv": ".env",
   "debug.internalConsoleOptions": "neverOpen",
-  "python.pythonPath": "C:\\Users\\local_user\\AppData\\Local\\Continuum\\anaconda3\\python.exe"
+  "python.pythonPath": ".env\\Scripts\\python.exe"
 }

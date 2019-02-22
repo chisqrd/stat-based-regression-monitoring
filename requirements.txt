@@ -7,3 +7,6 @@ six==1.12.0
 psycopg2==2.7.6.1
 azure-keyvault
 azure-common
+matplotlib
+pandas
+scipy

@@ -14,25 +14,22 @@ class utilities:
         self.smtpserver = 'smtp.office365.com'
         self.smtpport = 587
         self.sender_secret_name = 'senderSecret'
+        self.environment_name = 'kidb'
 
     # ################################################
     # Import related functions
     # ################################################
 
     def import_library(self, library_package, library_names = None):
-        if library_names is None:
-            try:
+        try:
+            if library_names is None:
                 self.logging.info("Importing %s library" % library_package)
                 return __import__(library_package)
-            except ImportError:
-                raise ImportError("You need to install %s library for credential retrieval. e.g. pip install %s" %(library_package, library_package.replace('.','-')))
-        else:
-            try:
+            else:
                 self.logging.info("Importing %s library from %s" %(' and '.join(library_names),library_package))
                 return __import__(name=library_package,fromlist=library_names)
-            except ImportError:
-                raise ImportError("You need to install the required library(ies) %s. e.g. pip install %s" %(','.join(library_names), library_package.replace('.','-')))
-
+        except ImportError:
+            raise ImportError('Library was not found: %s' %(library_package))
 
     # ################################################
     # Authorization & Authentication related functions
@@ -45,16 +42,16 @@ class utilities:
             #import_library('msrestazure.azure_active_directory','MSIAuthentication')
             #self.import_libraries('msrestazure.azure_active_directory','MSIAuthentication')
 
-            with open('.\secrets\secrets.json','r') as data_file:
+            with open('./secrets/secrets.json','r') as data_file:
                 data = j.load(data_file)
 
-            TENANT_ID = data['keyvault']['tenant_id']
+            tenant_id = data['keyvault']['tenant_id']
             # Your Service Principal App ID
-            CLIENT = data['keyvault']['client']
+            client = data['keyvault']['client']
             # Your Service Principal Password
-            KEY = data['keyvault']['key']
+            key = data['keyvault']['key']
 
-            credentials = sp.ServicePrincipalCredentials(client_id = CLIENT, secret = KEY, tenant = TENANT_ID)
+            credentials = sp.ServicePrincipalCredentials(client_id = client, secret = key, tenant = tenant_id)
             # As of this time this article was written (Feburary 2018) a system assigned identity could not be used from a development/local
             # environment while using MSIAuthentication. When it's supported, you may enable below line instead of the above lines
             # credentials = MSIAuthentication()
@@ -90,15 +87,11 @@ class utilities:
         return cursor
 
     def commit_close(self,conn,cursor):
-
-        # Cleanup
         conn.commit()
         cursor.close()
         conn.close()
 
     def rollback_close(self,conn,cursor):
-
-        # Cleanup
         conn.rollback()
         cursor.close()
         conn.close()
@@ -112,11 +105,6 @@ class utilities:
         os = self.import_library('os')
         json = self.import_library('json')
         try:
-    #        if len(sys.argv) == 3:
-    #            scenario = sys.argv[1]
-    #            scenarioFilePath = sys.argv[2]
-    #        else:
-    #            raise ValueError("You must set the scenario name and the scenario master file path in order to run this script")
             self.logging.info("Current working directory is: %s" %os.getcwd())
             self.logging.info("Reading the scenario specifics")
             
@@ -129,13 +117,8 @@ class utilities:
             else:
                 return [v[0] for k,v in data.items() if k == '%s'%(scenario)]
 
-        except ValueError as e:
-            self.logging.error("Required arguments not passed: %s" %(e))
-            #self.sendMail(ADMIN,SENDER,"Cron job missing arguments","Please review your cron job for missing arguments. Expecting scenario ....py scenarioFilePath in order")
-
         except Exception as e:
             self.logging.error("Error reading scenario file: %s" %(e))
-            #self.sendMail(ADMIN,SENDER,"Cron job cannot start %s scenario" %(scenario),"There is an issue with loading the json section for this scenario. Please ensure json is well-formed.")
 
 
 
@@ -144,36 +127,153 @@ class utilities:
     # ################################################
 
     def send_mail(self,to, fr, subject, text, files={},server='smtp.office365.com'):
-        slib = self.import_library('smtplib')
-        mmm = self.import_library('email.mime.multipart',['MIMEMultipart'])
-        mmb = self.import_library('email.mime.base',['MIMEBase'])
-        mmt = self.import_library('email.mime.text',['MIMEText'])
-        fd = self.import_library('email.utils',['formatdate'])
-        enc = self.import_library('email',['encoders'])
+        import smtplib
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.base import MIMEBase
+        from email.mime.text import MIMEText
+        from email.utils import formatdate 
+        from email import encoders
 
         try:
-            msg = mmm.MIMEMultipart()
+            msg = MIMEMultipart()
             msg['From'] = fr
             msg['To'] = to
-            msg['Date'] = fd.formatdate(localtime=True)
+            msg['Date'] = formatdate(localtime=True)
             msg['Subject'] = subject
-            msg.attach( mmt.MIMEText(text) )
+            msg.attach( MIMEText(text) )
 
             for filekey,filevalue in files.items():
-                part = mmb.MIMEBase('application', "octet-stream")
-                part.set_payload(filevalue)
-                enc.encoders.encode_base64(part)
+                part = MIMEBase('application', "pdf")
+                part.set_payload(filevalue.read())
+                encoders.encode_base64(part)
                 part.add_header('Content-Disposition', 'attachment; filename="%s"'% filekey)
                 msg.attach(part)
 
-            smtp = slib.SMTP(self.smtpserver,self.smtpport)
+            smtp = smtplib.SMTP(self.smtpserver,self.smtpport)
             smtp.ehlo()
             smtp.starttls()
-            smtp.ehlo()
             smtp.login(self.sender,self.get_secret_value(self.sender_secret_name))
             smtp.sendmail(fr, to, msg.as_string() )
             smtp.close()
             self.logging.info("Successfully sent email")
 
-        except slib.SMTPException as e:
+        except smtplib.SMTPException as e:
             self.logging.error("Unable to send email: %s" %(e))
+
+    def detect_significantly_different_queries(
+         self, 
+         aggregation_function = 'sum',         
+         column_to_evaluate = 'mean_time',
+         baseline_period_start = '2018-08-01 10:00:00-07',
+         baseline_period_end = '2019-02-15 10:00:00-07',
+         current_period_start = '2019-02-15 10:00:00-07',
+         current_period_end = '2019-03-01 10:00:00-07',
+         p_threshold = 0.05,
+         directional_preference = 1, # -1 for decrease, +1 for increase, 0 for either way
+         percent_change_threshold = 0.05
+        ):
+
+        import pandas as pd
+        import numpy as np
+        from scipy.stats import ttest_ind, ttest_ind_from_stats
+        #from scipy.special import stdtr
+        import matplotlib.backends.backend_pdf
+        import matplotlib.pyplot as plt
+        pdfs = {}
+
+        qs_metric_aggregation_grouped_by = "with ordered_qs_aggregation as (\
+            select query_id as group_by, query_sql_text, start_time, datname, %s(%s) as metric \
+            from query_store.qs_view join pg_database on query_store.qs_view.db_id = pg_database.oid \
+            where start_time >= '%s' and start_time < '%s' \
+            group by group_by, query_sql_text, start_time, datname order by datname,group_by, start_time ) \
+            select datname as database_name,group_by, query_sql_text, array_agg(metric) as metric_value, array_agg(start_time) as timeseries \
+            from ordered_qs_aggregation group by datname, group_by, query_sql_text"
+        conn = self.get_connection(self.get_secret_value(self.environment_name))
+        cursor = self.get_cursor(conn)
+
+
+        #ws
+        #cursor.execute(ws_metric_aggregation_grouped_by % (baseline_period_start,baseline_period_end))
+        #baseline = pd.DataFrame(cursor.fetchall(), columns=['db_id', 'group_by', 'metric_distribution'])
+
+        #cursor.execute(ws_metric_aggregation_grouped_by % (current_period_start,current_period_end))
+        #current = pd.DataFrame(cursor.fetchall(), columns=['db_id', 'group_by', 'metric_distribution'])
+
+        #qs
+        cursor.execute(qs_metric_aggregation_grouped_by % ('sum','mean_time',baseline_period_start,baseline_period_end))
+        baseline = pd.DataFrame(cursor.fetchall(), columns=['database_name', 'group_by','description', 'metric_distribution','timeseries'])
+
+        cursor.execute(qs_metric_aggregation_grouped_by % ('sum','mean_time',current_period_start,current_period_end))
+        current = pd.DataFrame(cursor.fetchall(), columns=['database_name', 'group_by','description', 'metric_distribution','timeseries'])
+
+        self.commit_close(conn,cursor)
+
+        if(len(baseline.index)>0 and len(current.index)>0):
+            comparison_frame = pd.merge(baseline, current, how='right', left_on=['database_name','group_by'],right_on=['database_name', 'group_by'])
+        
+            row_count = len(comparison_frame.index)
+            i = 0
+            pdf = matplotlib.backends.backend_pdf.PdfPages("./docs/output.pdf")
+
+            for index, row in comparison_frame.iterrows():
+                query_id = comparison_frame.iloc[index,1]
+                database_name = comparison_frame.iloc[index,0]
+                query_text = comparison_frame.iloc[index,2]
+
+                #create distribution of metrics from query store per query for baseline period and current period
+                b = np.asarray(comparison_frame.iloc[index,3])
+                c = np.asarray(comparison_frame.iloc[index,6])
+
+                # Compute the descriptive statistics of baseline (b) and current(c)
+                bbar = b.mean()
+                bvar = b.var(ddof=1)
+                nb = b.size
+                bdof = nb - 1
+
+                cbar = c.mean()
+                cvar = c.var(ddof=1)
+                nc = c.size
+                cdof = nc - 1
+
+                if (bdof<=0 or cdof<=0):
+                    continue
+                if (nb<30 or nc<30):
+                    #not enough population size for central limit theorem to hold
+                    continue
+                if (directional_preference*(cbar-bbar)<0):
+                    continue
+                if((abs(cbar-bbar)/bbar)<percent_change_threshold):
+                    continue
+                    
+                # Use scipy.stats.ttest_ind's welch's test
+                t, p = ttest_ind(b, c, equal_var=False, nan_policy = 'omit')
+                one_sided_p = p/2
+                if(one_sided_p > p_threshold):
+                    result = 'failed to reject h0: no difference significance (query_id: %s database_name: %s) ' % (query_id,database_name)
+                elif (one_sided_p < p_threshold):
+                    i = i + 1
+                    result = 'rejected h0: difference significance (query_id: %s database_name: %s) ' % (query_id,database_name)
+                    baseline_series = pd.Series.from_array(comparison_frame.iloc[index,3],comparison_frame.iloc[index,4])
+                    current_series = pd.Series.from_array(comparison_frame.iloc[index,6],comparison_frame.iloc[index,7])
+
+                    fig, ax1 = plt.subplots(figsize=(10,4))
+                    baseline_series.plot(ax=ax1)
+
+                    current_series.plot(ax=ax1)
+                    fig.text(0,0.5,'Query ID: %s\n\nDatabase: %s\n\nQuery Text (first 100): %s\n\n\np-value:%s'%(comparison_frame.iloc[index,1],comparison_frame.iloc[index,0],comparison_frame.iloc[index,2][:100],p),ha='right',va='top')
+                    
+                    plt.legend (loc='best')
+                    pdf.savefig(fig, bbox_inches='tight')
+
+                else:
+                    result = 'nan: omit processing (query_id: %s database_name: %s) ' % (query_id,database_name)
+                self.logging.info(result)
+                self.logging.info("Row: %s of %s processed. count of series with significant difference:%s " %(index+1,row_count,i))
+
+            pdf.close()
+            pdfs['output'] = pdf
+
+            return pdfs
+        else:
+            self.logging.info('No records exist in one or more periods you specified. Please select ranges for which both baseline and current data exists')
+            return None
