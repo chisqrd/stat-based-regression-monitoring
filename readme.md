@@ -40,7 +40,7 @@ You are now ready to deploy. Go to Azure tab in Visual Studio Code, click Deploy
 ## Troubleshooting
 If you experience below issue while publishing your function to Azure with Visual Studio Code, please follow the instructions [here](https://docs.microsoft.com/en-us/azure/azure-functions/functions-reference-python#publishing-to-azure)
 
-After installing Docker on your dev environment and ensure that it is running, you can run `func azure functionapp publish <app name> --build-native-deps` as instructed from within Visual Studio Code's terminal ![package your app and publish](https://github.com/chisqrd/multi-scenario-env-alerting/blob/master/images/function_docker_deploying.png)
+After installing Docker on your dev environment and ensure that it is running, you can run `func azure functionapp publish <app name> --build-native-deps --no-bundles` as instructed from within Visual Studio Code's terminal ![package your app and publish](https://github.com/chisqrd/multi-scenario-env-alerting/blob/master/images/function_docker_deploying.png)
 
 Once upload and deployment completes successfully, you can visit your function in the portal and verify if it is running as expected or if there are some corrective actions you need to take.
 
